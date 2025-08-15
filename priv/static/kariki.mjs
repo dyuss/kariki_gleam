@@ -5036,6 +5036,30 @@ function on_change(msg) {
   );
 }
 
+// build/dev/javascript/kariki/game.mjs
+var Game = class extends CustomType {
+  constructor(title, id2, link, price, status, condition) {
+    super();
+    this.title = title;
+    this.id = id2;
+    this.link = link;
+    this.price = price;
+    this.status = status;
+    this.condition = condition;
+  }
+};
+var NewCondition = class extends CustomType {
+};
+var UsedCondition = class extends CustomType {
+};
+function condition_to_string(condition) {
+  if (condition instanceof NewCondition) {
+    return "\u041D\u043E\u0432\u044B\u0439";
+  } else {
+    return "\u0411/\u0423";
+  }
+}
+
 // build/dev/javascript/kariki/kariki.ffi.mjs
 async function fetch_db() {
   try {
@@ -5048,6 +5072,47 @@ async function fetch_db() {
 }
 function format_date(date) {
   return new Date(date).toLocaleString();
+}
+
+// build/dev/javascript/kariki/sorting.mjs
+var SortById = class extends CustomType {
+};
+var SortByPrice = class extends CustomType {
+};
+var SortByTitle = class extends CustomType {
+};
+function sort_games(games, sorting) {
+  let _pipe = games;
+  return sort(
+    _pipe,
+    (a2, b) => {
+      if (sorting instanceof SortById) {
+        return reverse(compare)(a2.id, b.id);
+      } else if (sorting instanceof SortByPrice) {
+        return compare(a2.price, b.price);
+      } else {
+        return compare3(a2.title, b.title);
+      }
+    }
+  );
+}
+function to_string4(sorting) {
+  if (sorting instanceof SortById) {
+    return "id";
+  } else if (sorting instanceof SortByPrice) {
+    return "price";
+  } else {
+    return "title";
+  }
+}
+function from_sorting(str) {
+  if (str === "title") {
+    return new SortByTitle();
+  } else if (str === "price") {
+    return new SortByPrice();
+  } else {
+    return new SortById();
+  }
 }
 
 // build/dev/javascript/kariki/kariki.mjs
@@ -5084,33 +5149,12 @@ var Filters = class extends CustomType {
     this.conditions = conditions;
   }
 };
-var SortById = class extends CustomType {
-};
-var SortByPrice = class extends CustomType {
-};
-var SortByTitle = class extends CustomType {
-};
 var Db = class extends CustomType {
   constructor(games, date) {
     super();
     this.games = games;
     this.date = date;
   }
-};
-var Game = class extends CustomType {
-  constructor(title, id2, link, price, status, condition) {
-    super();
-    this.title = title;
-    this.id = id2;
-    this.link = link;
-    this.price = price;
-    this.status = status;
-    this.condition = condition;
-  }
-};
-var NewCondition = class extends CustomType {
-};
-var UsedCondition = class extends CustomType {
 };
 var AppLoadedDbJson = class extends CustomType {
   constructor($0) {
@@ -5142,107 +5186,6 @@ var UserChangedConditionFilter = class extends CustomType {
     this[0] = $0;
   }
 };
-function fetch_db2() {
-  let _block;
-  {
-    let game_decoder = field(
-      "title",
-      string2,
-      (title) => {
-        return field(
-          "id",
-          int2,
-          (id2) => {
-            return field(
-              "link",
-              string2,
-              (link) => {
-                return field(
-                  "status",
-                  string2,
-                  (status) => {
-                    return field(
-                      "price",
-                      int2,
-                      (price) => {
-                        return field(
-                          "condition",
-                          string2,
-                          (game_condition) => {
-                            let _block$1;
-                            if (game_condition === "new") {
-                              _block$1 = new NewCondition();
-                            } else {
-                              _block$1 = new UsedCondition();
-                            }
-                            let condition = _block$1;
-                            return success(
-                              new Game(
-                                title,
-                                id2,
-                                link,
-                                price,
-                                status,
-                                condition
-                              )
-                            );
-                          }
-                        );
-                      }
-                    );
-                  }
-                );
-              }
-            );
-          }
-        );
-      }
-    );
-    _block = field(
-      "date",
-      string2,
-      (date) => {
-        return field(
-          "games",
-          list2(game_decoder),
-          (games) => {
-            return success(new Db(games, date));
-          }
-        );
-      }
-    );
-  }
-  let decoder = _block;
-  return from(
-    (dispatch) => {
-      let _pipe = fetch_db();
-      let _pipe$1 = map_promise(
-        _pipe,
-        (response) => {
-          if (response instanceof Ok) {
-            let r = response[0];
-            let $ = run(r, decoder);
-            if ($ instanceof Ok) {
-              let db = $[0];
-              return new AppLoadedDbJson(new Ok(db));
-            } else {
-              return new AppLoadedDbJson(new Error("error parsing db"));
-            }
-          } else {
-            return new AppLoadedDbJson(new Error("error getting db"));
-          }
-        }
-      );
-      tap(_pipe$1, dispatch);
-      return void 0;
-    }
-  );
-}
-function init(_) {
-  let model = new Loading();
-  let effect = fetch_db2();
-  return [model, effect];
-}
 function filter_games(games, filters) {
   let _pipe = games;
   return filter(
@@ -5277,21 +5220,6 @@ function filter_games(games, filters) {
       }
       let is_condition = _block$2;
       return is_title && is_status && is_condition;
-    }
-  );
-}
-function sort_games(games, sorting) {
-  let _pipe = games;
-  return sort(
-    _pipe,
-    (a2, b) => {
-      if (sorting instanceof SortById) {
-        return reverse(compare)(a2.id, b.id);
-      } else if (sorting instanceof SortByPrice) {
-        return compare(a2.price, b.price);
-      } else {
-        return compare3(a2.title, b.title);
-      }
     }
   );
 }
@@ -5461,24 +5389,6 @@ function update2(model, msg) {
     return [model$1, none()];
   }
 }
-function sorting_to_string(sorting) {
-  if (sorting instanceof SortById) {
-    return "id";
-  } else if (sorting instanceof SortByPrice) {
-    return "price";
-  } else {
-    return "title";
-  }
-}
-function string_to_sorting(str) {
-  if (str === "title") {
-    return new SortByTitle();
-  } else if (str === "price") {
-    return new SortByPrice();
-  } else {
-    return new SortById();
-  }
-}
 function view_sorting(data) {
   return div(
     toList([class$("title-filter headings")]),
@@ -5486,10 +5396,10 @@ function view_sorting(data) {
       h6(toList([]), toList([text3("\u0421\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u043A\u0430")])),
       select(
         toList([
-          value(sorting_to_string(data.sorting)),
+          value(to_string4(data.sorting)),
           on_change(
             (str) => {
-              return new UserChangedSorting(string_to_sorting(str));
+              return new UserChangedSorting(from_sorting(str));
             }
           )
         ]),
@@ -5566,34 +5476,6 @@ function view_status_filter(data) {
     )
   );
 }
-function view_games_count(data) {
-  let count = (l) => {
-    let _pipe = l;
-    let _pipe$1 = length(_pipe);
-    return to_string(_pipe$1);
-  };
-  return div(
-    toList([class$("games-list__count")]),
-    toList([
-      text3(
-        "\u041D\u0430\u0439\u0434\u0435\u043D\u043E: " + count(data.visible_games) + "/" + count(data.db.games)
-      )
-    ])
-  );
-}
-function view_db_date(db) {
-  return div(
-    toList([class$("games-list__date")]),
-    toList([text3("\u041E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0435: " + format_date(db.date))])
-  );
-}
-function condition_to_string(condition) {
-  if (condition instanceof NewCondition) {
-    return "\u041D\u043E\u0432\u044B\u0439";
-  } else {
-    return "\u0411/\u0423";
-  }
-}
 function view_condition_checkbox(condition, conditions) {
   return label(
     toList([for$(condition_to_string(condition))]),
@@ -5650,6 +5532,21 @@ function view_filters(data) {
     ])
   );
 }
+function view_games_count(data) {
+  let count = (l) => {
+    let _pipe = l;
+    let _pipe$1 = length(_pipe);
+    return to_string(_pipe$1);
+  };
+  return div(
+    toList([class$("games-list__count")]),
+    toList([
+      text3(
+        "\u041D\u0430\u0439\u0434\u0435\u043D\u043E: " + count(data.visible_games) + "/" + count(data.db.games)
+      )
+    ])
+  );
+}
 function view_games_list_item(game) {
   return tr(
     toList([]),
@@ -5698,6 +5595,12 @@ function view_games_list(data) {
     ])
   );
 }
+function view_db_date(db) {
+  return div(
+    toList([class$("games-list__date")]),
+    toList([text3("\u041E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0435: " + format_date(db.date))])
+  );
+}
 function view_list(data) {
   return div(
     toList([class$("games-list")]),
@@ -5724,6 +5627,107 @@ function view(model) {
     );
   }
 }
+function fetch_db2() {
+  let _block;
+  {
+    let game_decoder = field(
+      "title",
+      string2,
+      (title) => {
+        return field(
+          "id",
+          int2,
+          (id2) => {
+            return field(
+              "link",
+              string2,
+              (link) => {
+                return field(
+                  "status",
+                  string2,
+                  (status) => {
+                    return field(
+                      "price",
+                      int2,
+                      (price) => {
+                        return field(
+                          "condition",
+                          string2,
+                          (game_condition) => {
+                            let _block$1;
+                            if (game_condition === "new") {
+                              _block$1 = new NewCondition();
+                            } else {
+                              _block$1 = new UsedCondition();
+                            }
+                            let condition = _block$1;
+                            return success(
+                              new Game(
+                                title,
+                                id2,
+                                link,
+                                price,
+                                status,
+                                condition
+                              )
+                            );
+                          }
+                        );
+                      }
+                    );
+                  }
+                );
+              }
+            );
+          }
+        );
+      }
+    );
+    _block = field(
+      "date",
+      string2,
+      (date) => {
+        return field(
+          "games",
+          list2(game_decoder),
+          (games) => {
+            return success(new Db(games, date));
+          }
+        );
+      }
+    );
+  }
+  let decoder = _block;
+  return from(
+    (dispatch) => {
+      let _pipe = fetch_db();
+      let _pipe$1 = map_promise(
+        _pipe,
+        (response) => {
+          if (response instanceof Ok) {
+            let r = response[0];
+            let $ = run(r, decoder);
+            if ($ instanceof Ok) {
+              let db = $[0];
+              return new AppLoadedDbJson(new Ok(db));
+            } else {
+              return new AppLoadedDbJson(new Error("error parsing db"));
+            }
+          } else {
+            return new AppLoadedDbJson(new Error("error getting db"));
+          }
+        }
+      );
+      tap(_pipe$1, dispatch);
+      return void 0;
+    }
+  );
+}
+function init(_) {
+  let model = new Loading();
+  let effect = fetch_db2();
+  return [model, effect];
+}
 function main() {
   let app = application(init, update2, view);
   let $ = start3(app, "#app", void 0);
@@ -5732,10 +5736,10 @@ function main() {
       "let_assert",
       FILEPATH,
       "kariki",
-      18,
+      19,
       "main",
       "Pattern match failed, no pattern matched the value.",
-      { value: $, start: 440, end: 489, pattern_start: 451, pattern_end: 456 }
+      { value: $, start: 534, end: 583, pattern_start: 545, pattern_end: 550 }
     );
   }
   return void 0;

@@ -1,9 +1,9 @@
+import game.{type Game, type GameCondition, NewCondition, UsedCondition}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/int
 import gleam/javascript/promise.{type Promise}
 import gleam/list
-import gleam/order
 import gleam/string
 import lustre
 import lustre/attribute
@@ -12,6 +12,7 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/element/keyed
 import lustre/event
+import sorting.{type Sorting, SortById}
 
 pub fn main() {
   let app = lustre.application(init, update, view)
@@ -39,30 +40,8 @@ type Filters {
   )
 }
 
-type Sorting {
-  SortById
-  SortByPrice
-  SortByTitle
-}
-
 type Db {
   Db(games: List(Game), date: String)
-}
-
-type Game {
-  Game(
-    title: String,
-    id: Int,
-    link: String,
-    price: Int,
-    status: String,
-    condition: GameCondition,
-  )
-}
-
-type GameCondition {
-  NewCondition
-  UsedCondition
 }
 
 fn init(_) -> #(Model, Effect(Msg)) {
@@ -85,7 +64,7 @@ fn fetch_db() -> Effect(Msg) {
         "new" -> NewCondition
         _ -> UsedCondition
       }
-      decode.success(Game(title:, id:, link:, price:, condition:, status:))
+      decode.success(game.Game(title:, id:, link:, price:, condition:, status:))
     }
     use date <- decode.field("date", decode.string)
     use games <- decode.field("games", decode.list(game_decoder))
@@ -112,9 +91,6 @@ fn fetch_db() -> Effect(Msg) {
     Nil
   })
 }
-
-@external(javascript, "./kariki.ffi.mjs", "fetch_db")
-fn do_fetch_db() -> Promise(Result(Dynamic, Nil))
 
 type Msg {
   AppLoadedDbJson(Result(Db, String))
@@ -258,7 +234,7 @@ fn prepare_visible_games(
   sorting: Sorting,
   filters: Filters,
 ) -> List(Game) {
-  games |> filter_games(filters) |> sort_games(sorting)
+  games |> filter_games(filters) |> sorting.sort_games(sorting)
 }
 
 fn filter_games(games: List(Game), filters: Filters) -> List(Game) {
@@ -283,17 +259,6 @@ fn filter_games(games: List(Game), filters: Filters) -> List(Game) {
     }
 
     is_title && is_status && is_condition
-  })
-}
-
-fn sort_games(games: List(Game), sorting: Sorting) -> List(Game) {
-  games
-  |> list.sort(fn(a, b) {
-    case sorting {
-      SortById -> order.reverse(int.compare)(a.id, b.id)
-      SortByTitle -> string.compare(a.title, b.title)
-      SortByPrice -> int.compare(a.price, b.price)
-    }
   })
 }
 
@@ -324,8 +289,10 @@ fn view_sorting(data: AppData) -> Element(Msg) {
     html.h6([], [html.text("Сортировка")]),
     html.select(
       [
-        attribute.value(sorting_to_string(data.sorting)),
-        event.on_change(fn(str) { UserChangedSorting(string_to_sorting(str)) }),
+        attribute.value(sorting.to_string(data.sorting)),
+        event.on_change(fn(str) {
+          UserChangedSorting(sorting.from_sorting(str))
+        }),
       ],
       [
         html.option([attribute.value("id")], "По обновлению"),
@@ -334,22 +301,6 @@ fn view_sorting(data: AppData) -> Element(Msg) {
       ],
     ),
   ])
-}
-
-fn sorting_to_string(sorting: Sorting) -> String {
-  case sorting {
-    SortById -> "id"
-    SortByTitle -> "title"
-    SortByPrice -> "price"
-  }
-}
-
-fn string_to_sorting(str: String) -> Sorting {
-  case str {
-    "title" -> SortByTitle
-    "price" -> SortByPrice
-    _ -> SortById
-  }
 }
 
 fn view_title_filter(data: AppData) -> Element(Msg) {
@@ -403,15 +354,15 @@ fn view_condition_checkbox(
   condition: GameCondition,
   conditions: List(GameCondition),
 ) -> Element(Msg) {
-  html.label([attribute.for(condition_to_string(condition))], [
+  html.label([attribute.for(game.condition_to_string(condition))], [
     html.input([
       attribute.type_("checkbox"),
-      attribute.id(condition_to_string(condition)),
+      attribute.id(game.condition_to_string(condition)),
       attribute.checked(conditions |> list.contains(condition)),
       event.on_change(fn(_) { UserChangedConditionFilter(condition) }),
     ]),
     html.span([attribute.class("checkable")], [
-      html.text(condition_to_string(condition)),
+      html.text(game.condition_to_string(condition)),
     ]),
   ])
 }
@@ -441,9 +392,6 @@ fn view_db_date(db: Db) -> Element(Msg) {
   ])
 }
 
-@external(javascript, "./kariki.ffi.mjs", "format_date")
-fn format_date(date: String) -> String
-
 fn view_games_list(data: AppData) -> Element(Msg) {
   html.table([attribute.role("grid")], [
     keyed.tbody([], {
@@ -467,7 +415,7 @@ fn view_games_list_item(game: Game) -> Element(Msg) {
       ),
     ]),
     html.td([attribute.class("game_condition")], [
-      html.text(condition_to_string(game.condition)),
+      html.text(game.condition_to_string(game.condition)),
     ]),
     html.td([attribute.class("game_status")], [
       html.text(game.status),
@@ -478,9 +426,8 @@ fn view_games_list_item(game: Game) -> Element(Msg) {
   ])
 }
 
-fn condition_to_string(condition: GameCondition) -> String {
-  case condition {
-    NewCondition -> "Новый"
-    UsedCondition -> "Б/У"
-  }
-}
+@external(javascript, "./kariki.ffi.mjs", "format_date")
+fn format_date(date: String) -> String
+
+@external(javascript, "./kariki.ffi.mjs", "fetch_db")
+fn do_fetch_db() -> Promise(Result(Dynamic, Nil))
