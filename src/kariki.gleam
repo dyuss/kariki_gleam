@@ -73,30 +73,38 @@ fn init(_) -> #(Model, Effect(Msg)) {
 }
 
 fn fetch_db() -> Effect(Msg) {
+  let decoder = {
+    let game_decoder = {
+      use title <- decode.field("title", decode.string)
+      use id <- decode.field("id", decode.int)
+      use link <- decode.field("link", decode.string)
+      use status <- decode.field("status", decode.string)
+      use price <- decode.field("price", decode.int)
+      use game_condition <- decode.field("condition", decode.string)
+      let condition = case game_condition {
+        "new" -> NewCondition
+        _ -> UsedCondition
+      }
+      decode.success(Game(title:, id:, link:, price:, condition:, status:))
+    }
+    use date <- decode.field("date", decode.string)
+    use games <- decode.field("games", decode.list(game_decoder))
+    decode.success(Db(games, date))
+  }
+
   effect.from(fn(dispatch) {
     do_fetch_db()
     |> promise.map(fn(response) {
-      let decoder = {
-        let game_decoder = {
-          use title <- decode.field("title", decode.string)
-          use id <- decode.field("id", decode.int)
-          use link <- decode.field("link", decode.string)
-          use status <- decode.field("status", decode.string)
-          use price <- decode.field("price", decode.int)
-          use game_condition <- decode.field("condition", decode.string)
-          let condition = case game_condition {
-            "new" -> NewCondition
-            _ -> UsedCondition
+      case response {
+        Ok(r) -> {
+          case decode.run(r, decoder) {
+            Ok(db) -> AppLoadedDbJson(Ok(db))
+            _ -> AppLoadedDbJson(Error("error parsing db"))
           }
-          decode.success(Game(title:, id:, link:, price:, condition:, status:))
         }
-        use date <- decode.field("date", decode.string)
-        use games <- decode.field("games", decode.list(game_decoder))
-        decode.success(Db(games, date))
-      }
-      case decode.run(response, decoder) {
-        Ok(db) -> AppLoadedDbJson(Ok(db))
-        _ -> AppLoadedDbJson(Error("error getting db"))
+        _ -> {
+          AppLoadedDbJson(Error("error getting db"))
+        }
       }
     })
     |> promise.tap(dispatch)
@@ -106,7 +114,7 @@ fn fetch_db() -> Effect(Msg) {
 }
 
 @external(javascript, "./kariki.ffi.mjs", "fetch_db")
-fn do_fetch_db() -> Promise(Dynamic)
+fn do_fetch_db() -> Promise(Result(Dynamic, Nil))
 
 type Msg {
   AppLoadedDbJson(Result(Db, String))

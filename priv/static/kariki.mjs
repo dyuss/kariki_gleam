@@ -5038,8 +5038,13 @@ function on_change(msg) {
 
 // build/dev/javascript/kariki/kariki.ffi.mjs
 async function fetch_db() {
-  const response = await fetch("/db.json");
-  return response.json();
+  try {
+    const response = await fetch("./db.json");
+    const json2 = await response.json();
+    return new Ok(json2);
+  } catch (e) {
+    return new Error(void 0);
+  }
 }
 function format_date(date) {
   return new Date(date).toLocaleString();
@@ -5138,58 +5143,48 @@ var UserChangedConditionFilter = class extends CustomType {
   }
 };
 function fetch_db2() {
-  return from(
-    (dispatch) => {
-      let _pipe = fetch_db();
-      let _pipe$1 = map_promise(
-        _pipe,
-        (response) => {
-          let _block;
-          {
-            let game_decoder = field(
-              "title",
+  let _block;
+  {
+    let game_decoder = field(
+      "title",
+      string2,
+      (title) => {
+        return field(
+          "id",
+          int2,
+          (id2) => {
+            return field(
+              "link",
               string2,
-              (title) => {
+              (link) => {
                 return field(
-                  "id",
-                  int2,
-                  (id2) => {
+                  "status",
+                  string2,
+                  (status) => {
                     return field(
-                      "link",
-                      string2,
-                      (link) => {
+                      "price",
+                      int2,
+                      (price) => {
                         return field(
-                          "status",
+                          "condition",
                           string2,
-                          (status) => {
-                            return field(
-                              "price",
-                              int2,
-                              (price) => {
-                                return field(
-                                  "condition",
-                                  string2,
-                                  (game_condition) => {
-                                    let _block$1;
-                                    if (game_condition === "new") {
-                                      _block$1 = new NewCondition();
-                                    } else {
-                                      _block$1 = new UsedCondition();
-                                    }
-                                    let condition = _block$1;
-                                    return success(
-                                      new Game(
-                                        title,
-                                        id2,
-                                        link,
-                                        price,
-                                        status,
-                                        condition
-                                      )
-                                    );
-                                  }
-                                );
-                              }
+                          (game_condition) => {
+                            let _block$1;
+                            if (game_condition === "new") {
+                              _block$1 = new NewCondition();
+                            } else {
+                              _block$1 = new UsedCondition();
+                            }
+                            let condition = _block$1;
+                            return success(
+                              new Game(
+                                title,
+                                id2,
+                                link,
+                                price,
+                                status,
+                                condition
+                              )
                             );
                           }
                         );
@@ -5199,25 +5194,40 @@ function fetch_db2() {
                 );
               }
             );
-            _block = field(
-              "date",
-              string2,
-              (date) => {
-                return field(
-                  "games",
-                  list2(game_decoder),
-                  (games) => {
-                    return success(new Db(games, date));
-                  }
-                );
-              }
-            );
           }
-          let decoder = _block;
-          let $ = run(response, decoder);
-          if ($ instanceof Ok) {
-            let db = $[0];
-            return new AppLoadedDbJson(new Ok(db));
+        );
+      }
+    );
+    _block = field(
+      "date",
+      string2,
+      (date) => {
+        return field(
+          "games",
+          list2(game_decoder),
+          (games) => {
+            return success(new Db(games, date));
+          }
+        );
+      }
+    );
+  }
+  let decoder = _block;
+  return from(
+    (dispatch) => {
+      let _pipe = fetch_db();
+      let _pipe$1 = map_promise(
+        _pipe,
+        (response) => {
+          if (response instanceof Ok) {
+            let r = response[0];
+            let $ = run(r, decoder);
+            if ($ instanceof Ok) {
+              let db = $[0];
+              return new AppLoadedDbJson(new Ok(db));
+            } else {
+              return new AppLoadedDbJson(new Error("error parsing db"));
+            }
           } else {
             return new AppLoadedDbJson(new Error("error getting db"));
           }
