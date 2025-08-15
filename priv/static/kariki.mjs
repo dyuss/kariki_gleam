@@ -5059,6 +5059,127 @@ function condition_to_string(condition) {
     return "\u0411/\u0423";
   }
 }
+function get_decoder() {
+  return field(
+    "title",
+    string2,
+    (title) => {
+      return field(
+        "id",
+        int2,
+        (id2) => {
+          return field(
+            "link",
+            string2,
+            (link) => {
+              return field(
+                "status",
+                string2,
+                (status) => {
+                  return field(
+                    "price",
+                    int2,
+                    (price) => {
+                      return field(
+                        "condition",
+                        string2,
+                        (game_condition) => {
+                          let _block;
+                          if (game_condition === "new") {
+                            _block = new NewCondition();
+                          } else {
+                            _block = new UsedCondition();
+                          }
+                          let condition = _block;
+                          return success(
+                            new Game(title, id2, link, price, status, condition)
+                          );
+                        }
+                      );
+                    }
+                  );
+                }
+              );
+            }
+          );
+        }
+      );
+    }
+  );
+}
+
+// build/dev/javascript/kariki/db.mjs
+var Db = class extends CustomType {
+  constructor(games, date) {
+    super();
+    this.games = games;
+    this.date = date;
+  }
+};
+function get_decoder2() {
+  let game_decoder = get_decoder();
+  return field(
+    "date",
+    string2,
+    (date) => {
+      return field(
+        "games",
+        list2(game_decoder),
+        (games) => {
+          return success(new Db(games, date));
+        }
+      );
+    }
+  );
+}
+
+// build/dev/javascript/kariki/filters.mjs
+var Filters = class extends CustomType {
+  constructor(title, statuses, available_statuses, conditions) {
+    super();
+    this.title = title;
+    this.statuses = statuses;
+    this.available_statuses = available_statuses;
+    this.conditions = conditions;
+  }
+};
+function filter_games(games, filters) {
+  let _pipe = games;
+  return filter(
+    _pipe,
+    (game) => {
+      let _block;
+      let $ = string_length(filters.title);
+      if ($ === 0) {
+        _block = true;
+      } else {
+        let _pipe$1 = game.title;
+        let _pipe$2 = lowercase(_pipe$1);
+        _block = contains_string(_pipe$2, lowercase(filters.title));
+      }
+      let is_title = _block;
+      let _block$1;
+      let $1 = length(filters.statuses);
+      if ($1 === 0) {
+        _block$1 = true;
+      } else {
+        let _pipe$1 = filters.statuses;
+        _block$1 = contains(_pipe$1, game.status);
+      }
+      let is_status = _block$1;
+      let _block$2;
+      let $2 = length(filters.conditions);
+      if ($2 === 0) {
+        _block$2 = true;
+      } else {
+        let _pipe$1 = filters.conditions;
+        _block$2 = contains(_pipe$1, game.condition);
+      }
+      let is_condition = _block$2;
+      return is_title && is_status && is_condition;
+    }
+  );
+}
 
 // build/dev/javascript/kariki/kariki.ffi.mjs
 async function fetch_db() {
@@ -5140,22 +5261,6 @@ var AppData = class extends CustomType {
     this.filters = filters;
   }
 };
-var Filters = class extends CustomType {
-  constructor(title, statuses, available_statuses, conditions) {
-    super();
-    this.title = title;
-    this.statuses = statuses;
-    this.available_statuses = available_statuses;
-    this.conditions = conditions;
-  }
-};
-var Db = class extends CustomType {
-  constructor(games, date) {
-    super();
-    this.games = games;
-    this.date = date;
-  }
-};
 var AppLoadedDbJson = class extends CustomType {
   constructor($0) {
     super();
@@ -5186,43 +5291,6 @@ var UserChangedConditionFilter = class extends CustomType {
     this[0] = $0;
   }
 };
-function filter_games(games, filters) {
-  let _pipe = games;
-  return filter(
-    _pipe,
-    (game) => {
-      let _block;
-      let $ = string_length(filters.title);
-      if ($ === 0) {
-        _block = true;
-      } else {
-        let _pipe$1 = game.title;
-        let _pipe$2 = lowercase(_pipe$1);
-        _block = contains_string(_pipe$2, lowercase(filters.title));
-      }
-      let is_title = _block;
-      let _block$1;
-      let $1 = length(filters.statuses);
-      if ($1 === 0) {
-        _block$1 = true;
-      } else {
-        let _pipe$1 = filters.statuses;
-        _block$1 = contains(_pipe$1, game.status);
-      }
-      let is_status = _block$1;
-      let _block$2;
-      let $2 = length(filters.conditions);
-      if ($2 === 0) {
-        _block$2 = true;
-      } else {
-        let _pipe$1 = filters.conditions;
-        _block$2 = contains(_pipe$1, game.condition);
-      }
-      let is_condition = _block$2;
-      return is_title && is_status && is_condition;
-    }
-  );
-}
 function prepare_visible_games(games, sorting, filters) {
   let _pipe = games;
   let _pipe$1 = filter_games(_pipe, filters);
@@ -5628,76 +5696,6 @@ function view(model) {
   }
 }
 function fetch_db2() {
-  let _block;
-  {
-    let game_decoder = field(
-      "title",
-      string2,
-      (title) => {
-        return field(
-          "id",
-          int2,
-          (id2) => {
-            return field(
-              "link",
-              string2,
-              (link) => {
-                return field(
-                  "status",
-                  string2,
-                  (status) => {
-                    return field(
-                      "price",
-                      int2,
-                      (price) => {
-                        return field(
-                          "condition",
-                          string2,
-                          (game_condition) => {
-                            let _block$1;
-                            if (game_condition === "new") {
-                              _block$1 = new NewCondition();
-                            } else {
-                              _block$1 = new UsedCondition();
-                            }
-                            let condition = _block$1;
-                            return success(
-                              new Game(
-                                title,
-                                id2,
-                                link,
-                                price,
-                                status,
-                                condition
-                              )
-                            );
-                          }
-                        );
-                      }
-                    );
-                  }
-                );
-              }
-            );
-          }
-        );
-      }
-    );
-    _block = field(
-      "date",
-      string2,
-      (date) => {
-        return field(
-          "games",
-          list2(game_decoder),
-          (games) => {
-            return success(new Db(games, date));
-          }
-        );
-      }
-    );
-  }
-  let decoder = _block;
   return from(
     (dispatch) => {
       let _pipe = fetch_db();
@@ -5706,7 +5704,7 @@ function fetch_db2() {
         (response) => {
           if (response instanceof Ok) {
             let r = response[0];
-            let $ = run(r, decoder);
+            let $ = run(r, get_decoder2());
             if ($ instanceof Ok) {
               let db = $[0];
               return new AppLoadedDbJson(new Ok(db));
@@ -5736,10 +5734,10 @@ function main() {
       "let_assert",
       FILEPATH,
       "kariki",
-      19,
+      20,
       "main",
       "Pattern match failed, no pattern matched the value.",
-      { value: $, start: 534, end: 583, pattern_start: 545, pattern_end: 550 }
+      { value: $, start: 564, end: 613, pattern_start: 575, pattern_end: 580 }
     );
   }
   return void 0;

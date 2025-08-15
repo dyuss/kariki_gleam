@@ -1,10 +1,11 @@
+import db.{type Db}
+import filters.{type Filters}
 import game.{type Game, type GameCondition, NewCondition, UsedCondition}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/int
 import gleam/javascript/promise.{type Promise}
 import gleam/list
-import gleam/string
 import lustre
 import lustre/attribute
 import lustre/effect.{type Effect}
@@ -31,19 +32,6 @@ type AppData {
   AppData(db: Db, visible_games: List(Game), sorting: Sorting, filters: Filters)
 }
 
-type Filters {
-  Filters(
-    title: String,
-    statuses: List(String),
-    available_statuses: List(String),
-    conditions: List(GameCondition),
-  )
-}
-
-type Db {
-  Db(games: List(Game), date: String)
-}
-
 fn init(_) -> #(Model, Effect(Msg)) {
   let model = Loading
   let effect = fetch_db()
@@ -52,31 +40,12 @@ fn init(_) -> #(Model, Effect(Msg)) {
 }
 
 fn fetch_db() -> Effect(Msg) {
-  let decoder = {
-    let game_decoder = {
-      use title <- decode.field("title", decode.string)
-      use id <- decode.field("id", decode.int)
-      use link <- decode.field("link", decode.string)
-      use status <- decode.field("status", decode.string)
-      use price <- decode.field("price", decode.int)
-      use game_condition <- decode.field("condition", decode.string)
-      let condition = case game_condition {
-        "new" -> NewCondition
-        _ -> UsedCondition
-      }
-      decode.success(game.Game(title:, id:, link:, price:, condition:, status:))
-    }
-    use date <- decode.field("date", decode.string)
-    use games <- decode.field("games", decode.list(game_decoder))
-    decode.success(Db(games, date))
-  }
-
   effect.from(fn(dispatch) {
     do_fetch_db()
     |> promise.map(fn(response) {
       case response {
         Ok(r) -> {
-          case decode.run(r, decoder) {
+          case decode.run(r, db.get_decoder()) {
             Ok(db) -> AppLoadedDbJson(Ok(db))
             _ -> AppLoadedDbJson(Error("error parsing db"))
           }
@@ -107,7 +76,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         Ok(db) -> {
           let next_sorting = SortById
           let next_filters =
-            Filters(
+            filters.Filters(
               title: "",
               statuses: [],
               available_statuses: db.games
@@ -152,7 +121,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     UserChangedTitleFilter(title) -> {
       let model = case model {
         Loaded(data) -> {
-          let next_filters = Filters(..data.filters, title:)
+          let next_filters = filters.Filters(..data.filters, title:)
           Loaded(
             AppData(
               ..data,
@@ -180,7 +149,8 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
               |> list.filter(fn(s) { s != status })
             False -> data.filters.statuses |> list.append([status])
           }
-          let next_filters = Filters(..data.filters, statuses: next_statuses)
+          let next_filters =
+            filters.Filters(..data.filters, statuses: next_statuses)
           Loaded(
             AppData(
               ..data,
@@ -209,7 +179,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
             False -> data.filters.conditions |> list.append([condition])
           }
           let next_filters =
-            Filters(..data.filters, conditions: next_conditions)
+            filters.Filters(..data.filters, conditions: next_conditions)
           Loaded(
             AppData(
               ..data,
@@ -234,32 +204,7 @@ fn prepare_visible_games(
   sorting: Sorting,
   filters: Filters,
 ) -> List(Game) {
-  games |> filter_games(filters) |> sorting.sort_games(sorting)
-}
-
-fn filter_games(games: List(Game), filters: Filters) -> List(Game) {
-  games
-  |> list.filter(fn(game) {
-    let is_title = case string.length(filters.title) {
-      0 -> True
-      _ ->
-        game.title
-        |> string.lowercase
-        |> string.contains(string.lowercase(filters.title))
-    }
-
-    let is_status = case list.length(filters.statuses) {
-      0 -> True
-      _ -> filters.statuses |> list.contains(game.status)
-    }
-
-    let is_condition = case list.length(filters.conditions) {
-      0 -> True
-      _ -> filters.conditions |> list.contains(game.condition)
-    }
-
-    is_title && is_status && is_condition
-  })
+  games |> filters.filter_games(filters) |> sorting.sort_games(sorting)
 }
 
 fn view(model: Model) -> Element(Msg) {
