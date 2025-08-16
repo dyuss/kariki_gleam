@@ -3,4 +3,4 @@
 /build
 erl_crash.dump
 /dist
-/priv
+priv
